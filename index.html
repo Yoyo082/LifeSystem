@@ -177,18 +177,9 @@ let state;
 function defaultState(){
   return{
     pts:0,done:0,maxStreak:0,nid:20,
-    todos:[
-      {id:1,name:'讀書 30 分鐘',pt:20,checked:false},
-      {id:2,name:'回覆重要郵件',pt:10,checked:false},
-    ],
-    habits:[
-      {id:10,name:'早起 7:00',pt:20,streak:3,log:[1,1,1,0,0,0,0],doneToday:false},
-      {id:11,name:'喝 2L 水',pt:10,streak:5,log:[1,1,1,1,1,0,0],doneToday:false},
-    ],
-    rewards:[
-      {id:15,name:'看一集劇',cost:50},
-      {id:16,name:'點一杯手搖',cost:100},
-    ],
+    todos:[],
+    habits:[],
+    rewards:[],
     lastDate:today()
   };
 }
