@@ -69,6 +69,10 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
 
 .note{font-size:12px;color:#aaa;padding:.6rem 0;text-align:center;}
 .penalty-note{font-size:11px;color:#999;margin-top:.5rem;}
+.deadline{font-size:11px;padding:1px 6px;border-radius:99px;font-weight:600;white-space:nowrap;}
+.dl-ok{background:#e6f5ee;color:#0a7a52;}
+.dl-soon{background:#fdf3e0;color:#8a5a00;}
+.dl-over{background:#faecea;color:#a33;}
 
 .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(60px);background:#1a1a1a;color:#fff;font-size:12px;padding:8px 18px;border-radius:99px;transition:transform .25s ease;z-index:99;white-space:nowrap;pointer-events:none;}
 .toast.show{transform:translateX(-50%) translateY(0);}
@@ -95,6 +99,9 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
   .br{background:#3a1212;color:#e07070;}
   .ba{background:#3a2800;color:#e0a840;}
   .kpi-val.g{color:#4ec98a;}
+  .dl-ok{background:#0d3a25;color:#4ec98a;}
+  .dl-soon{background:#3a2800;color:#e0a840;}
+  .dl-over{background:#3a1212;color:#e07070;}
 }
 </style>
 </head>
@@ -114,7 +121,7 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
   <div class="kpis">
     <div class="kpi"><div class="kpi-label">積分</div><div class="kpi-val g" id="kPts">0</div></div>
     <div class="kpi"><div class="kpi-label">今日完成</div><div class="kpi-val" id="kDone">0</div></div>
-    <div class="kpi"><div class="kpi-label">最長連續</div><div class="kpi-val" id="kStreak">0 天</div></div>
+    <div class="kpi"><div class="kpi-label">今日得分</div><div class="kpi-val g" id="kTodayPts">+0</div></div>
   </div>
 
   <div class="tabs">
@@ -135,6 +142,10 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
         <option value="-20">-20 pt</option>
       </select>
       <button class="add-btn" onclick="addTodo()">新增</button>
+    </div>
+    <div class="add-row" style="margin-top:-4px;align-items:center;">
+      <span style="font-size:12px;color:#aaa;white-space:nowrap;">截止日期（選填）</span>
+      <input type="date" id="tDate" style="flex:1;font-size:12px;"/>
     </div>
     <div class="list" id="todoList"></div>
     <div class="penalty-note" id="penNote"></div>
@@ -176,7 +187,7 @@ let state;
 
 function defaultState(){
   return{
-    pts:0,done:0,maxStreak:0,nid:20,
+    pts:0,done:0,maxStreak:0,todayPts:0,nid:20,
     todos:[],
     habits:[],
     rewards:[],
@@ -194,6 +205,7 @@ function load(){
   // reset daily if new day
   if(state.lastDate!==today()){
     state.done=0;
+    state.todayPts=0;
     state.todos.forEach(t=>{if(t.pt<0)t.checked=false;});
     state.habits.forEach(h=>{
       if(!h.doneToday)h.log.push(0);
@@ -220,8 +232,8 @@ function updateTop(){
   document.getElementById('xpHint').textContent=cur+' / '+need+' xp';
   document.getElementById('kPts').textContent=state.pts;
   document.getElementById('kDone').textContent=state.done;
-  const ms=Math.max(state.maxStreak,...state.habits.map(h=>h.streak));
-  document.getElementById('kStreak').textContent=ms+'天';
+  const tp=state.todayPts||0;
+  document.getElementById('kTodayPts').textContent=(tp>=0?'+':'')+tp;
   document.querySelectorAll('.rdm-btn').forEach(b=>{b.disabled=state.pts<+b.dataset.cost;});
 }
 
@@ -231,6 +243,20 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),1800);
 }
 
+function daysLeft(dateStr){
+  if(!dateStr)return null;
+  const diff=Math.ceil((new Date(dateStr)-new Date(today()))/(1000*60*60*24));
+  return diff;
+}
+function deadlineBadge(dateStr){
+  if(!dateStr)return'';
+  const d=daysLeft(dateStr);
+  if(d<0)return`<span class="deadline dl-over">逾期 ${-d} 天</span>`;
+  if(d===0)return`<span class="deadline dl-soon">今天到期</span>`;
+  if(d<=3)return`<span class="deadline dl-soon">剩 ${d} 天</span>`;
+  return`<span class="deadline dl-ok">剩 ${d} 天</span>`;
+}
+
 function renderTodos(){
   const el=document.getElementById('todoList');
   if(!state.todos.length){el.innerHTML='<div class="note">沒有待辦，新增一個！</div>';return;}
@@ -238,6 +264,7 @@ function renderTodos(){
   <div class="row${t.checked?' done':''}">
     <div class="ck${t.checked?' on':''}" onclick="toggleTodo(${t.id})"><span class="ck-mark">✓</span></div>
     <span class="rname">${t.name}</span>
+    ${deadlineBadge(t.due)}
     <span class="badge ${t.pt>=0?'bg':'br'}">${t.pt>0?'+':''}${t.pt}pt</span>
     <button class="del" onclick="delTodo(${t.id})">×</button>
   </div>`).join('');
@@ -249,6 +276,7 @@ function toggleTodo(id){
   const t=state.todos.find(x=>x.id===id);if(!t)return;
   t.checked=!t.checked;
   state.pts+=t.checked?t.pt:-t.pt;if(state.pts<0)state.pts=0;
+  state.todayPts=(state.todayPts||0)+(t.checked?t.pt:-t.pt);
   state.done+=t.checked?1:-1;if(state.done<0)state.done=0;
   toast(t.checked?(t.pt>0?`+${t.pt}pt 完成！`:`${t.pt}pt 扣除`):'已取消完成');
   save();renderTodos();updateTop();
@@ -256,9 +284,10 @@ function toggleTodo(id){
 
 function addTodo(){
   const i=document.getElementById('tIn'),p=+document.getElementById('tPt').value;
+  const due=document.getElementById('tDate').value||null;
   if(!i.value.trim())return;
-  state.todos.push({id:state.nid++,name:i.value.trim(),pt:p,checked:false});
-  i.value='';save();renderTodos();
+  state.todos.push({id:state.nid++,name:i.value.trim(),pt:p,checked:false,due});
+  i.value='';document.getElementById('tDate').value='';save();renderTodos();
 }
 
 function delTodo(id){
@@ -288,7 +317,7 @@ function checkHabit(id){
   const h=state.habits.find(x=>x.id===id);if(!h||h.doneToday)return;
   h.doneToday=true;h.streak++;h.log.push(1);
   const mul=h.streak>=7?2:1;
-  const earn=h.pt*mul;state.pts+=earn;state.done++;
+  const earn=h.pt*mul;state.pts+=earn;state.todayPts=(state.todayPts||0)+earn;state.done++;
   if(h.streak>state.maxStreak)state.maxStreak=h.streak;
   toast(mul>1?`連續 ${h.streak} 天！+${earn}pt (加倍)`:`+${earn}pt 打卡成功`);
   save();renderHabits();updateTop();
