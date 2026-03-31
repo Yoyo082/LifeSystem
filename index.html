@@ -133,14 +133,7 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
   <div id="s-todo" class="sec on">
     <div class="add-row">
       <input id="tIn" placeholder="新增待辦事項..." onkeydown="if(event.key==='Enter')addTodo()"/>
-      <select id="tPt">
-        <option value="5">+5 pt</option>
-        <option value="10" selected>+10 pt</option>
-        <option value="20">+20 pt</option>
-        <option value="50">+50 pt</option>
-        <option value="-10">-10 pt</option>
-        <option value="-20">-20 pt</option>
-      </select>
+      <input type="number" id="tPt" value="10" placeholder="積分" style="width:72px;text-align:center;" title="正數得分，負數扣分"/>
       <button class="add-btn" onclick="addTodo()">新增</button>
     </div>
     <div class="add-row" style="margin-top:-4px;align-items:center;">
@@ -154,11 +147,7 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
   <div id="s-habit" class="sec">
     <div class="add-row">
       <input id="hIn" placeholder="新增每日習慣..." onkeydown="if(event.key==='Enter')addHabit()"/>
-      <select id="hPt">
-        <option value="5">+5 pt</option>
-        <option value="10" selected>+10 pt</option>
-        <option value="20">+20 pt</option>
-      </select>
+      <input type="number" id="hPt" value="10" placeholder="積分" style="width:72px;text-align:center;" min="1"/>
       <button class="add-btn" onclick="addHabit()">新增</button>
     </div>
     <div class="list" id="habitList"></div>
@@ -168,12 +157,7 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
   <div id="s-reward" class="sec">
     <div class="add-row">
       <input id="rIn" placeholder="新增獎勵..." onkeydown="if(event.key==='Enter')addReward()"/>
-      <select id="rCost">
-        <option value="30">30 pt</option>
-        <option value="50" selected>50 pt</option>
-        <option value="100">100 pt</option>
-        <option value="200">200 pt</option>
-      </select>
+      <input type="number" id="rCost" value="100" placeholder="費用" style="width:72px;text-align:center;" min="1"/>
       <button class="add-btn" onclick="addReward()">新增</button>
     </div>
     <div class="list" id="rewardList"></div>
@@ -204,13 +188,37 @@ function load(){
   }catch(e){state=defaultState();}
   // reset daily if new day
   if(state.lastDate!==today()){
+    // calculate days missed since lastDate
+    const daysMissed=Math.max(1,Math.round((new Date(today())-new Date(state.lastDate))/(1000*60*60*24)));
     state.done=0;
     state.todayPts=0;
-    state.todos.forEach(t=>{if(t.pt<0)t.checked=false;});
+
+    // habit penalty: deduct pts for each missed day not checked
     state.habits.forEach(h=>{
-      if(!h.doneToday)h.log.push(0);
+      if(!h.doneToday){
+        h.log.push(0);
+        h.streak=0;
+        const pen=h.pt*daysMissed;
+        state.pts=Math.max(0,state.pts-pen);
+        state.todayPts-=pen;
+      }
       h.doneToday=false;
     });
+
+    // todo overdue penalty: deduct pts per overdue day for unchecked todos with due date
+    state.todos.forEach(t=>{
+      if(!t.checked&&t.due){
+        const overdue=Math.max(0,-Math.ceil((new Date(t.due)-new Date(today()))/(1000*60*60*24)));
+        const prevOverdue=Math.max(0,-Math.ceil((new Date(t.due)-new Date(state.lastDate))/(1000*60*60*24)));
+        const newDays=overdue-prevOverdue;
+        if(newDays>0){
+          const pen=Math.abs(t.pt)*newDays;
+          state.pts=Math.max(0,state.pts-pen);
+          state.todayPts-=pen;
+        }
+      }
+    });
+
     state.lastDate=today();
     save();
   }
