@@ -191,26 +191,26 @@ function load(){
     state.done=0;
     state.todayPts=0;
 
-    // habit penalty: deduct pts for each missed day not checked
+    // habit penalty: deduct half pts for each missed day not checked
     state.habits.forEach(h=>{
       if(!h.doneToday){
         h.log.push(0);
         h.streak=0;
-        const pen=h.pt*daysMissed;
+        const pen=Math.round(h.pt/2)*daysMissed;
         state.pts=Math.max(0,state.pts-pen);
         state.todayPts-=pen;
       }
       h.doneToday=false;
     });
 
-    // todo overdue penalty: deduct pts per overdue day for unchecked todos with due date
+    // todo overdue penalty: deduct half pts per overdue day
     state.todos.forEach(t=>{
       if(!t.checked&&t.due){
         const overdue=Math.max(0,-Math.ceil((new Date(t.due)-new Date(today()))/(1000*60*60*24)));
         const prevOverdue=Math.max(0,-Math.ceil((new Date(t.due)-new Date(state.lastDate))/(1000*60*60*24)));
         const newDays=overdue-prevOverdue;
         if(newDays>0){
-          const pen=Math.abs(t.pt)*newDays;
+          const pen=Math.round(Math.abs(t.pt)/2)*newDays;
           state.pts=Math.max(0,state.pts-pen);
           state.todayPts-=pen;
         }
