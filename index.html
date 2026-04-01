@@ -146,10 +146,14 @@ h1{font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:1.5rem;}
     <div class="add-row">
       <input id="hIn" placeholder="新增每日習慣..." onkeydown="if(event.key==='Enter')addHabit()"/>
       <input type="number" id="hPt" value="10" placeholder="pt" style="width:64px;text-align:center;" min="1"/>
+      <select id="hType" style="width:72px;font-size:12px;">
+        <option value="check">打卡</option>
+        <option value="count">計次</option>
+      </select>
       <button class="add-btn" onclick="addHabit()">新增</button>
     </div>
     <div class="list" id="habitList"></div>
-    <div class="note">連續 7 天打卡 → 積分加倍</div>
+    <div class="note">打卡型：連續 7 天 → 積分加倍｜計次型：每次累加積分</div>
   </div>
 
   <div id="s-reward" class="sec">
@@ -191,16 +195,19 @@ function load(){
     state.done=0;
     state.todayPts=0;
 
-    // habit penalty: deduct half pts for each missed day not checked
     state.habits.forEach(h=>{
-      if(!h.doneToday){
-        h.log.push(0);
-        h.streak=0;
-        const pen=Math.round(h.pt/2)*daysMissed;
-        state.pts=Math.max(0,state.pts-pen);
-        state.todayPts-=pen;
+      if(h.type==='count'){
+        h.countToday=0;
+      }else{
+        if(!h.doneToday){
+          h.log.push(0);
+          h.streak=0;
+          const pen=Math.round(h.pt/2)*daysMissed;
+          state.pts=Math.max(0,state.pts-pen);
+          state.todayPts-=pen;
+        }
+        h.doneToday=false;
       }
-      h.doneToday=false;
     });
 
     // todo overdue penalty: deduct half pts per overdue day
@@ -281,10 +288,11 @@ function renderTodos(){
 function toggleTodo(id){
   const t=state.todos.find(x=>x.id===id);if(!t)return;
   t.checked=!t.checked;
-  state.pts+=t.checked?t.pt:-t.pt;if(state.pts<0)state.pts=0;
-  state.todayPts=(state.todayPts||0)+(t.checked?t.pt:-t.pt);
+  const delta=t.checked?t.pt:-t.pt;
+  state.pts=Math.max(0,state.pts+delta);
+  state.todayPts=(state.todayPts||0)+delta;
   state.done+=t.checked?1:-1;if(state.done<0)state.done=0;
-  toast(t.checked?(t.pt>0?`+${t.pt}pt 完成！`:`${t.pt}pt 扣除`):'已取消完成');
+  toast(t.checked?(t.pt>0?`+${t.pt}pt 完成！`:`${t.pt}pt 扣除`):`-${t.pt}pt 已取消完成`);
   save();renderTodos();updateTop();
 }
 
@@ -297,8 +305,6 @@ function addTodo(){
 }
 
 function delTodo(id){
-  const t=state.todos.find(x=>x.id===id);
-  if(t&&t.checked){state.pts=Math.max(0,state.pts-t.pt);state.done=Math.max(0,state.done-1);}
   state.todos=state.todos.filter(x=>x.id!==id);save();renderTodos();updateTop();
 }
 
@@ -306,6 +312,15 @@ function renderHabits(){
   const el=document.getElementById('habitList');
   if(!state.habits.length){el.innerHTML='<div class="note">新增每日習慣！</div>';return;}
   el.innerHTML=state.habits.map(h=>{
+    if(h.type==='count'){
+      return`<div class="row">
+        <span class="rname">${h.name}</span>
+        <span class="badge ba">今日 ${h.countToday||0} 次</span>
+        <span class="badge bg">+${h.pt}pt／次</span>
+        <button class="add-btn" style="font-size:12px;padding:4px 10px;" onclick="countHabit(${h.id})">+1</button>
+        <button class="del" onclick="delHabit(${h.id})">×</button>
+      </div>`;
+    }
     const mul=h.streak>=7?2:1;
     const dots=h.log.slice(-7).map(d=>`<div class="dot ${d?'on':'off'}"></div>`).join('');
     return`<div class="row${h.doneToday?' done':''}">
@@ -329,10 +344,23 @@ function checkHabit(id){
   save();renderHabits();updateTop();
 }
 
+function countHabit(id){
+  const h=state.habits.find(x=>x.id===id);if(!h)return;
+  h.countToday=(h.countToday||0)+1;
+  state.pts+=h.pt;state.todayPts=(state.todayPts||0)+h.pt;state.done++;
+  toast(`+${h.pt}pt（今日第 ${h.countToday} 次）`);
+  save();renderHabits();updateTop();
+}
+
 function addHabit(){
   const i=document.getElementById('hIn'),p=+document.getElementById('hPt').value;
+  const type=document.getElementById('hType').value;
   if(!i.value.trim())return;
-  state.habits.push({id:state.nid++,name:i.value.trim(),pt:p,streak:0,log:[0,0,0,0,0,0,0],doneToday:false});
+  if(type==='count'){
+    state.habits.push({id:state.nid++,name:i.value.trim(),pt:p,type:'count',countToday:0});
+  }else{
+    state.habits.push({id:state.nid++,name:i.value.trim(),pt:p,type:'check',streak:0,log:[0,0,0,0,0,0,0],doneToday:false});
+  }
   i.value='';save();renderHabits();
 }
 
